@@ -35,3 +35,11 @@ class BookSeatResponse(BaseModel):
     status: str
     expires_at: datetime
     message: str
+
+class CancelBookingRequest(BaseModel):
+    booking_reference: str
+
+class CancelBookingResponse(BaseModel):
+    booking_reference: str
+    cancelled_seat_ids: List[int]
+    message: str

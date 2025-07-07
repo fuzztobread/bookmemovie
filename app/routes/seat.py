@@ -4,7 +4,7 @@ from database import get_db
 from models.seat import Seat
 from models.event import Event
 from models.movie import Movie
-from schemas.seat import SeatArrangementResponse, SeatResponse, BookSeatRequest, BookSeatResponse, EventResponse
+from schemas.seat import SeatArrangementResponse, SeatResponse, BookSeatRequest, BookSeatResponse, EventResponse, CancelBookingRequest, CancelBookingResponse
 from datetime import datetime, timedelta, timezone
 import uuid
 
@@ -102,11 +102,16 @@ def book_seats(booking_request: BookSeatRequest, db: Session = Depends(get_db)):
     booking_reference = str(uuid.uuid4())[:8].upper()
     expires_at = current_time + timedelta(minutes=10)
     
+    print(f"Generated booking_reference: {booking_reference}")
+    
     for seat in seats:
         seat.status = "locked"
         seat.locked_at = current_time
+        seat.booking_reference = booking_reference
+        print(f"Setting seat {seat.id} booking_reference to: {booking_reference}")
     
     db.commit()
+    print(f"Committed booking for seats: {booking_request.seat_ids}")
     
     return BookSeatResponse(
         booking_reference=booking_reference,
@@ -115,4 +120,37 @@ def book_seats(booking_request: BookSeatRequest, db: Session = Depends(get_db)):
         status="locked",
         expires_at=expires_at,
         message=f"Seats locked for 10 minutes. Complete payment before {expires_at.strftime('%H:%M:%S')}"
+    )
+
+@router.post("/cancel-booking", response_model=CancelBookingResponse)
+def cancel_booking(cancel_request: CancelBookingRequest, db: Session = Depends(get_db)):
+    print(f"Looking for booking_reference: {cancel_request.booking_reference}")
+    
+    # Find seats with this booking reference
+    seats = db.query(Seat).filter(Seat.booking_reference == cancel_request.booking_reference).all()
+    
+    print(f"Found {len(seats)} seats with this booking reference")
+    
+    # Let's also check what booking references exist in the database
+    all_booked_seats = db.query(Seat).filter(Seat.booking_reference.isnot(None)).all()
+    print(f"All booking references in DB: {[seat.booking_reference for seat in all_booked_seats]}")
+    
+    if not seats:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    
+    # Cancel the booking - reset seats to open
+    cancelled_seat_ids = []
+    for seat in seats:
+        print(f"Cancelling seat {seat.id}")
+        seat.status = "open"
+        seat.locked_at = None
+        seat.booking_reference = None
+        cancelled_seat_ids.append(seat.id)
+    
+    db.commit()
+    
+    return CancelBookingResponse(
+        booking_reference=cancel_request.booking_reference,
+        cancelled_seat_ids=cancelled_seat_ids,
+        message=f"Booking {cancel_request.booking_reference} has been cancelled. Seats are now available."
     )

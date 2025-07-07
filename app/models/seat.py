@@ -6,13 +6,13 @@ from datetime import datetime, timezone
 class Seat(Base):
     __tablename__ = "seats"
 
-    id = Column(Integer, primary_key=True, index=True)  # This is the seat_id
+    id = Column(Integer, primary_key=True, index=True)  #seat_id
     event_id = Column(Integer, ForeignKey("events.id"), nullable=False)
     price = Column(Float, nullable=False)
-    description = Column(String(255), nullable=False)  # Like "Row A Seat 1"
+    description = Column(String(255), nullable=False)  #row-column name
     status = Column(String(20), default="open")  # open, locked, booked
     locked_at = Column(DateTime, nullable=True)
-    
+    booking_reference = Column(String(50),nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     
     # Relationship
