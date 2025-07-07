@@ -152,31 +152,18 @@ def confirm_payment(payment_request: PaymentRequest, db: Session = Depends(get_d
     
     seat_ids = [seat.id for seat in seats]
     
-    if payment_request.payment_success:
-        # Payment successful - confirm booking
-        for seat in seats:
-            seat.status = "booked"
-            # Keep booking_reference for record keeping
-            # seat.locked_at can stay for audit trail
-        
-        db.commit()
-        
-        return PaymentResponse(
-            booking_reference=payment_request.booking_reference,
-            payment_status="success",
-            seat_ids=seat_ids,
-            message=f"Payment successful! Seats {seat_ids} are now booked."
-        )
-    else:
-        # Payment failed - keep seats locked for retry
-        # Don't change anything, just return status
-        
-        return PaymentResponse(
-            booking_reference=payment_request.booking_reference,
-            payment_status="failed",
-            seat_ids=seat_ids,
-            message=f"Payment failed. Seats remain locked. Please try again before lock expires."
-        )
+    # Payment successful - confirm booking
+    for seat in seats:
+        seat.status = "booked"
+        # Keep booking_reference for record keeping
+    
+    db.commit()
+    
+    return PaymentResponse(
+        booking_reference=payment_request.booking_reference,
+        seat_ids=seat_ids,
+        message=f"Payment confirmed! Seats {seat_ids} are now booked."
+    )
 
 @router.post("/cancel-booking", response_model=CancelBookingResponse)
 def cancel_booking(cancel_request: CancelBookingRequest, db: Session = Depends(get_db)):
