@@ -3,11 +3,29 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models.seat import Seat
 from models.event import Event
-from schemas.seat import SeatArrangementResponse, SeatResponse, BookSeatRequest, BookSeatResponse
+from models.movie import Movie
+from schemas.seat import SeatArrangementResponse, SeatResponse, BookSeatRequest, BookSeatResponse, EventResponse
 from datetime import datetime, timedelta, timezone
 import uuid
 
 router = APIRouter()
+
+@router.get("/events", response_model=list[EventResponse])
+def get_available_events(db: Session = Depends(get_db)):
+    # Get all events with movie details
+    events = db.query(Event).join(Movie).all()
+    
+    event_responses = []
+    for event in events:
+        event_response = EventResponse(
+            event_id=event.id,
+            movie_title=event.movie.title,
+            movie_description=event.movie.description,
+            start_time=event.start_time
+        )
+        event_responses.append(event_response)
+    
+    return event_responses
 
 @router.get("/events/{event_id}/seats", response_model=SeatArrangementResponse)
 def get_seats_for_event(event_id: int, db: Session = Depends(get_db)):

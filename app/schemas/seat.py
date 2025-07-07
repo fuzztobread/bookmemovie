@@ -2,6 +2,15 @@ from pydantic import BaseModel
 from typing import List
 from datetime import datetime
 
+class EventResponse(BaseModel):
+    event_id: int
+    movie_title: str
+    movie_description: str
+    start_time: datetime
+    
+    class Config:
+        from_attributes = True
+
 class SeatResponse(BaseModel):
     seat_id: int
     price: float
