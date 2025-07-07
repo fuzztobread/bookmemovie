@@ -43,3 +43,13 @@ class CancelBookingResponse(BaseModel):
     booking_reference: str
     cancelled_seat_ids: List[int]
     message: str
+
+class PaymentRequest(BaseModel):
+    booking_reference: str
+    payment_success: bool  # True for success, False for failure
+
+class PaymentResponse(BaseModel):
+    booking_reference: str
+    payment_status: str  # "success" or "failed"
+    seat_ids: List[int]
+    message: str

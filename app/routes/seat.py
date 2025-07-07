@@ -4,7 +4,7 @@ from database import get_db
 from models.seat import Seat
 from models.event import Event
 from models.movie import Movie
-from schemas.seat import SeatArrangementResponse, SeatResponse, BookSeatRequest, BookSeatResponse, EventResponse, CancelBookingRequest, CancelBookingResponse
+from schemas.seat import SeatArrangementResponse, SeatResponse, BookSeatRequest, BookSeatResponse, EventResponse, CancelBookingRequest, CancelBookingResponse, PaymentRequest, PaymentResponse
 from datetime import datetime, timedelta, timezone
 import uuid
 
@@ -121,6 +121,62 @@ def book_seats(booking_request: BookSeatRequest, db: Session = Depends(get_db)):
         expires_at=expires_at,
         message=f"Seats locked for 10 minutes. Complete payment before {expires_at.strftime('%H:%M:%S')}"
     )
+
+@router.post("/confirm-payment", response_model=PaymentResponse)
+def confirm_payment(payment_request: PaymentRequest, db: Session = Depends(get_db)):
+    current_time = datetime.now(timezone.utc)
+    
+    # Find seats with this booking reference
+    seats = db.query(Seat).filter(Seat.booking_reference == payment_request.booking_reference).all()
+    
+    if not seats:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    
+    # Check if booking has expired
+    booking_expired = False
+    for seat in seats:
+        if seat.locked_at:
+            time_diff = current_time - seat.locked_at.replace(tzinfo=timezone.utc)
+            if time_diff.total_seconds() > 600:  # 10 minutes
+                booking_expired = True
+                break
+    
+    if booking_expired:
+        # Auto-cancel expired booking
+        for seat in seats:
+            seat.status = "open"
+            seat.locked_at = None
+            seat.booking_reference = None
+        db.commit()
+        raise HTTPException(status_code=400, detail="Booking has expired. Please book again.")
+    
+    seat_ids = [seat.id for seat in seats]
+    
+    if payment_request.payment_success:
+        # Payment successful - confirm booking
+        for seat in seats:
+            seat.status = "booked"
+            # Keep booking_reference for record keeping
+            # seat.locked_at can stay for audit trail
+        
+        db.commit()
+        
+        return PaymentResponse(
+            booking_reference=payment_request.booking_reference,
+            payment_status="success",
+            seat_ids=seat_ids,
+            message=f"Payment successful! Seats {seat_ids} are now booked."
+        )
+    else:
+        # Payment failed - keep seats locked for retry
+        # Don't change anything, just return status
+        
+        return PaymentResponse(
+            booking_reference=payment_request.booking_reference,
+            payment_status="failed",
+            seat_ids=seat_ids,
+            message=f"Payment failed. Seats remain locked. Please try again before lock expires."
+        )
 
 @router.post("/cancel-booking", response_model=CancelBookingResponse)
 def cancel_booking(cancel_request: CancelBookingRequest, db: Session = Depends(get_db)):
