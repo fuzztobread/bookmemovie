@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Float
 from sqlalchemy.orm import relationship
-from app.database import Base
+from database import Base
 from datetime import datetime
 
 class Seat(Base):
