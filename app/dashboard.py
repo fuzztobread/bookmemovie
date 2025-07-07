@@ -5,6 +5,7 @@ from datetime import datetime
 
 # API base URL
 API_BASE = "http://localhost:8000/api"
+ADMIN_API = "http://localhost:8000/api/admin"
 
 # Page config
 st.set_page_config(page_title="🎬 Movie Ticketing System", layout="wide")
@@ -262,98 +263,332 @@ elif page == "🎫 Book Tickets":
 elif page == "📊 Admin Panel":
     st.header("📊 Admin Dashboard")
     
-    # Auto-refresh button
-    col1, col2 = st.columns([1, 4])
-    with col1:
-        if st.button("🔄 Refresh", type="primary"):
-            st.rerun()
+    # Tabs for different admin functions
+    tab1, tab2, tab3 = st.tabs(["📈 Overview", "🎬 Manage Movies", "🎭 Manage Events"])
     
-    # System stats
-    st.subheader("System Overview")
-    
-    try:
-        # Get all events
-        response = requests.get(f"{API_BASE}/events")
-        if response.status_code == 200:
-            events = response.json()
-            
-            total_events = len(events)
-            
-            # Get seat statistics for all events
-            total_seats = 0
-            total_booked = 0
-            total_locked = 0
-            
-            with st.spinner("Loading system statistics..."):
-                for event in events:
-                    try:
-                        seat_response = requests.get(f"{API_BASE}/events/{event['event_id']}/seats")
-                        if seat_response.status_code == 200:
-                            seat_data = seat_response.json()
-                            seats = seat_data['seats']
-                            
-                            total_seats += len(seats)
-                            total_booked += len([s for s in seats if s['status'] == 'booked'])
-                            total_locked += len([s for s in seats if s['status'] == 'locked'])
-                    except:
-                        continue
-            
-            # Display metrics
-            col1, col2, col3, col4, col5 = st.columns(5)
-            with col1:
-                st.metric("🎬 Events", total_events)
-            with col2:
-                st.metric("🎭 Total Seats", total_seats)
-            with col3:
-                st.metric("🔴 Booked", total_booked)
-            with col4:
-                st.metric("🟡 Locked", total_locked)
-            with col5:
-                available = total_seats - total_booked - total_locked
-                st.metric("🟢 Available", available)
-            
-            # Revenue calculation
-            if total_seats > 0:
-                occupancy_rate = ((total_booked + total_locked) / total_seats) * 100
-                st.metric("📈 Occupancy Rate", f"{occupancy_rate:.1f}%")
-            
-            # Show events table
-            if events:
-                st.divider()
-                st.subheader("📋 All Events")
-                events_df = pd.DataFrame(events)
-                st.dataframe(events_df, use_container_width=True)
+    with tab1:
+        # Auto-refresh button
+        col1, col2 = st.columns([1, 4])
+        with col1:
+            if st.button("🔄 Refresh", type="primary"):
+                st.rerun()
+        
+        # System stats
+        st.subheader("System Overview")
+        
+        try:
+            # Get all events
+            response = requests.get(f"{API_BASE}/events")
+            if response.status_code == 200:
+                events = response.json()
                 
-                # Detailed seat info for each event
-                st.subheader("🎭 Seat Details by Event")
-                for event in events:
-                    with st.expander(f"Event {event['event_id']}: {event['movie_title']}"):
+                total_events = len(events)
+                
+                # Get seat statistics for all events
+                total_seats = 0
+                total_booked = 0
+                total_locked = 0
+                
+                with st.spinner("Loading system statistics..."):
+                    for event in events:
                         try:
                             seat_response = requests.get(f"{API_BASE}/events/{event['event_id']}/seats")
                             if seat_response.status_code == 200:
                                 seat_data = seat_response.json()
                                 seats = seat_data['seats']
                                 
-                                # Create seat status summary
-                                seat_df = pd.DataFrame(seats)
-                                status_summary = seat_df['status'].value_counts()
-                                
-                                # Display status summary
-                                cols = st.columns(len(status_summary))
-                                for i, (status, count) in enumerate(status_summary.items()):
-                                    with cols[i]:
-                                        color_map = {"open": "🟢", "locked": "🟡", "booked": "🔴"}
-                                        st.metric(f"{color_map.get(status, '⚪')} {status.title()}", count)
-                                
-                                # Show seat details table
-                                st.dataframe(seat_df, use_container_width=True)
-                        except Exception as e:
-                            st.error(f"Error loading seats for event {event['event_id']}: {e}")
-        else:
-            st.error("Failed to fetch events from API")
+                                total_seats += len(seats)
+                                total_booked += len([s for s in seats if s['status'] == 'booked'])
+                                total_locked += len([s for s in seats if s['status'] == 'locked'])
+                        except:
+                            continue
+                
+                # Display metrics
+                col1, col2, col3, col4, col5 = st.columns(5)
+                with col1:
+                    st.metric("🎬 Events", total_events)
+                with col2:
+                    st.metric("🎭 Total Seats", total_seats)
+                with col3:
+                    st.metric("🔴 Booked", total_booked)
+                with col4:
+                    st.metric("🟡 Locked", total_locked)
+                with col5:
+                    available = total_seats - total_booked - total_locked
+                    st.metric("🟢 Available", available)
+                
+                # Revenue calculation
+                if total_seats > 0:
+                    occupancy_rate = ((total_booked + total_locked) / total_seats) * 100
+                    st.metric("📈 Occupancy Rate", f"{occupancy_rate:.1f}%")
+                
+                # Show events table
+                if events:
+                    st.divider()
+                    st.subheader("📋 All Events")
+                    events_df = pd.DataFrame(events)
+                    st.dataframe(events_df, use_container_width=True)
+            else:
+                st.error("Failed to fetch events from API")
+            
+        except Exception as e:
+            st.error(f"Error loading admin data: {e}")
+    
+    with tab2:
+        st.subheader("🎬 Movie Management")
         
-    except Exception as e:
-        st.error(f"Error loading admin data: {e}")
+        # Display existing movies
+        try:
+            response = requests.get(f"{ADMIN_API}/movies")
+            if response.status_code == 200:
+                movies = response.json()
+                
+                if movies:
+                    st.write("### Current Movies")
+                    movies_df = pd.DataFrame(movies)
+                    
+                    # Display movies with action buttons
+                    for movie in movies:
+                        with st.container():
+                            col1, col2, col3, col4 = st.columns([3, 2, 1, 1])
+                            
+                            with col1:
+                                st.write(f"**{movie['title']}**")
+                                st.caption(movie['description'] or "No description")
+                            
+                            with col2:
+                                st.write(f"ID: {movie['id']}")
+                            
+                            with col3:
+                                # Edit button
+                                if st.button("✏️ Edit", key=f"edit_movie_{movie['id']}"):
+                                    st.session_state[f"editing_movie_{movie['id']}"] = True
+                            
+                            with col4:
+                                # Delete button
+                                if st.button("🗑️ Delete", key=f"delete_movie_{movie['id']}", type="secondary"):
+                                    if st.confirm(f"Delete '{movie['title']}'?"):
+                                        try:
+                                            del_response = requests.delete(f"{ADMIN_API}/movies/{movie['id']}")
+                                            if del_response.status_code == 200:
+                                                st.success("Movie deleted successfully!")
+                                                st.rerun()
+                                            else:
+                                                st.error("Failed to delete movie")
+                                        except Exception as e:
+                                            st.error(f"Error: {e}")
+                            
+                            # Edit form (shown when edit button is clicked)
+                            if st.session_state.get(f"editing_movie_{movie['id']}", False):
+                                with st.form(f"edit_movie_form_{movie['id']}"):
+                                    st.write(f"### Edit: {movie['title']}")
+                                    new_title = st.text_input("Title:", value=movie['title'])
+                                    new_description = st.text_area("Description:", value=movie['description'] or "")
+                                    
+                                    col_save, col_cancel = st.columns(2)
+                                    with col_save:
+                                        if st.form_submit_button("💾 Save Changes", type="primary"):
+                                            try:
+                                                update_data = {
+                                                    "title": new_title,
+                                                    "description": new_description
+                                                }
+                                                update_response = requests.put(f"{ADMIN_API}/movies/{movie['id']}", json=update_data)
+                                                if update_response.status_code == 200:
+                                                    st.success("Movie updated successfully!")
+                                                    st.session_state[f"editing_movie_{movie['id']}"] = False
+                                                    st.rerun()
+                                                else:
+                                                    st.error("Failed to update movie")
+                                            except Exception as e:
+                                                st.error(f"Error: {e}")
+                                    
+                                    with col_cancel:
+                                        if st.form_submit_button("❌ Cancel"):
+                                            st.session_state[f"editing_movie_{movie['id']}"] = False
+                                            st.rerun()
+                            
+                            st.divider()
+                else:
+                    st.info("No movies found")
+        except Exception as e:
+            st.error(f"Error loading movies: {e}")
+        
+        # Add new movie form
+        st.divider()
+        st.subheader("➕ Add New Movie")
+        
+        with st.form("add_movie_form"):
+            movie_title = st.text_input("Movie Title:", placeholder="Enter movie title")
+            movie_description = st.text_area("Description:", placeholder="Enter movie description (optional)")
+            
+            if st.form_submit_button("🎬 Add Movie", type="primary"):
+                if movie_title:
+                    try:
+                        movie_data = {
+                            "title": movie_title,
+                            "description": movie_description if movie_description else None
+                        }
+                        
+                        response = requests.post(f"{ADMIN_API}/movies", json=movie_data)
+                        
+                        if response.status_code == 200:
+                            result = response.json()
+                            st.success(f"✅ Movie '{result['title']}' added successfully!")
+                            st.rerun()
+                        else:
+                            st.error("Failed to add movie")
+                    except Exception as e:
+                        st.error(f"Error adding movie: {e}")
+                else:
+                    st.warning("Please enter a movie title")
+    
+    with tab3:
+        st.subheader("🎭 Event Management")
+        
+        # Display existing events
+        try:
+            response = requests.get(f"{ADMIN_API}/events")
+            if response.status_code == 200:
+                events = response.json()
+                
+                if events:
+                    st.write("### Current Events")
+                    
+                    # Display events with action buttons
+                    for event in events:
+                        with st.container():
+                            col1, col2, col3, col4 = st.columns([3, 2, 1, 1])
+                            
+                            with col1:
+                                st.write(f"**{event['movie_title']}**")
+                                st.caption(f"Start: {event['start_time'][:19]}")
+                            
+                            with col2:
+                                st.write(f"ID: {event['id']}")
+                                st.write(f"🎭 {event['available_seats']}/{event['total_seats']} available")
+                            
+                            with col3:
+                                # Edit button
+                                if st.button("✏️ Edit", key=f"edit_event_{event['id']}"):
+                                    st.session_state[f"editing_event_{event['id']}"] = True
+                            
+                            with col4:
+                                # Delete button
+                                if st.button("🗑️ Delete", key=f"delete_event_{event['id']}", type="secondary"):
+                                    if event['booked_seats'] > 0:
+                                        st.error(f"Cannot delete: {event['booked_seats']} seats are booked")
+                                    else:
+                                        try:
+                                            del_response = requests.delete(f"{ADMIN_API}/events/{event['id']}")
+                                            if del_response.status_code == 200:
+                                                st.success("Event deleted successfully!")
+                                                st.rerun()
+                                            else:
+                                                st.error("Failed to delete event")
+                                        except Exception as e:
+                                            st.error(f"Error: {e}")
+                            
+                            # Edit form (shown when edit button is clicked)
+                            if st.session_state.get(f"editing_event_{event['id']}", False):
+                                with st.form(f"edit_event_form_{event['id']}"):
+                                    st.write(f"### Edit Event: {event['movie_title']}")
+                                    
+                                    # Get movies for dropdown
+                                    movies_response = requests.get(f"{ADMIN_API}/movies")
+                                    if movies_response.status_code == 200:
+                                        movies = movies_response.json()
+                                        movie_options = {movie['title']: movie['id'] for movie in movies}
+                                        
+                                        current_movie = next((m['title'] for m in movies if m['id'] == event['movie_id']), None)
+                                        new_movie = st.selectbox("Movie:", options=list(movie_options.keys()), 
+                                                                index=list(movie_options.keys()).index(current_movie) if current_movie else 0)
+                                        
+                                        # Parse current datetime
+                                        current_time = datetime.fromisoformat(event['start_time'].replace('Z', '+00:00'))
+                                        
+                                        new_date = st.date_input("Date:", value=current_time.date())
+                                        new_time = st.time_input("Time:", value=current_time.time())
+                                        
+                                        col_save, col_cancel = st.columns(2)
+                                        with col_save:
+                                            if st.form_submit_button("💾 Save Changes", type="primary"):
+                                                try:
+                                                    # Combine date and time
+                                                    new_datetime = datetime.combine(new_date, new_time)
+                                                    
+                                                    update_data = {
+                                                        "movie_id": movie_options[new_movie],
+                                                        "start_time": new_datetime.isoformat()
+                                                    }
+                                                    update_response = requests.put(f"{ADMIN_API}/events/{event['id']}", json=update_data)
+                                                    if update_response.status_code == 200:
+                                                        st.success("Event updated successfully!")
+                                                        st.session_state[f"editing_event_{event['id']}"] = False
+                                                        st.rerun()
+                                                    else:
+                                                        st.error("Failed to update event")
+                                                except Exception as e:
+                                                    st.error(f"Error: {e}")
+                                        
+                                        with col_cancel:
+                                            if st.form_submit_button("❌ Cancel"):
+                                                st.session_state[f"editing_event_{event['id']}"] = False
+                                                st.rerun()
+                            
+                            st.divider()
+                else:
+                    st.info("No events found")
+        except Exception as e:
+            st.error(f"Error loading events: {e}")
+        
+        # Add new event form
+        st.divider()
+        st.subheader("➕ Add New Event")
+        
+        with st.form("add_event_form"):
+            # Get movies for dropdown
+            try:
+                movies_response = requests.get(f"{ADMIN_API}/movies")
+                if movies_response.status_code == 200:
+                    movies = movies_response.json()
+                    
+                    if movies:
+                        movie_options = {movie['title']: movie['id'] for movie in movies}
+                        selected_movie = st.selectbox("Select Movie:", options=list(movie_options.keys()))
+                        
+                        event_date = st.date_input("Event Date:")
+                        event_time = st.time_input("Event Time:")
+                        total_seats = st.number_input("Total Seats:", min_value=1, value=25, max_value=100)
+                        
+                        if st.form_submit_button("🎭 Add Event", type="primary"):
+                            try:
+                                # Combine date and time
+                                event_datetime = datetime.combine(event_date, event_time)
+                                
+                                event_data = {
+                                    "movie_id": movie_options[selected_movie],
+                                    "start_time": event_datetime.isoformat(),
+                                    "total_seats": total_seats
+                                }
+                                
+                                response = requests.post(f"{ADMIN_API}/events", json=event_data)
+                                
+                                if response.status_code == 200:
+                                    result = response.json()
+                                    st.success(f"✅ Event for '{selected_movie}' added successfully with {result['total_seats']} seats!")
+                                    st.rerun()
+                                else:
+                                    error_detail = response.json().get('detail', 'Unknown error')
+                                    st.error(f"Failed to add event: {error_detail}")
+                            except Exception as e:
+                                st.error(f"Error adding event: {e}")
+                    else:
+                        st.warning("⚠️ No movies available. Please add a movie first.")
+                else:
+                    st.error("Failed to load movies")
+            except Exception as e:
+                st.error(f"Error loading movies: {e}")
 
 # Footer
 st.divider()
@@ -365,6 +600,8 @@ if st.button("ℹ️ About"):
     - 🎫 Interactive seat selection and booking
     - 💳 Payment confirmation system
     - 📊 Real-time admin dashboard
+    - 🎬 Movie management (CRUD operations)
+    - 🎭 Event management with auto seat generation
     - 🔄 Auto-refresh capabilities
     
     **Tech Stack:** FastAPI (Backend) + Streamlit (Frontend) + SQLite (Database)
