@@ -16,5 +16,13 @@ class SeatArrangementResponse(BaseModel):
     seats: List[SeatResponse]
 
 class BookSeatRequest(BaseModel):
-    seat_id: int
-    user_email: str  # Simple auth for now
+    seat_ids: List[int]
+    user_email: str
+
+class BookSeatResponse(BaseModel):
+    booking_reference: str
+    seat_ids: List[int]
+    total_amount: float
+    status: str
+    expires_at: datetime
+    message: str

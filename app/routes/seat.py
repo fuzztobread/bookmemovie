@@ -3,8 +3,9 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models.seat import Seat
 from models.event import Event
-from schemas.seat import SeatArrangementResponse, SeatResponse
+from schemas.seat import SeatArrangementResponse, SeatResponse, BookSeatRequest, BookSeatResponse
 from datetime import datetime, timedelta, timezone
+import uuid
 
 router = APIRouter()
 
@@ -43,4 +44,57 @@ def get_seats_for_event(event_id: int, db: Session = Depends(get_db)):
     return SeatArrangementResponse(
         event_id=event_id,
         seats=seat_responses
+    )
+
+@router.post("/book-seats", response_model=BookSeatResponse)
+def book_seats(booking_request: BookSeatRequest, db: Session = Depends(get_db)):
+    current_time = datetime.now(timezone.utc)
+    
+    # Check if all seats exist and are available
+    seats = db.query(Seat).filter(Seat.id.in_(booking_request.seat_ids)).all()
+    
+    if len(seats) != len(booking_request.seat_ids):
+        raise HTTPException(status_code=404, detail="One or more seats not found")
+    
+    # Check seat availability
+    unavailable_seats = []
+    total_amount = 0
+    
+    for seat in seats:
+        current_status = seat.status
+        
+        # Check if locked seat has expired
+        if seat.status == "locked" and seat.locked_at:
+            time_diff = current_time - seat.locked_at.replace(tzinfo=timezone.utc)
+            if time_diff.total_seconds() > 600:  # 10 minutes
+                current_status = "open"
+        
+        if current_status != "open":
+            unavailable_seats.append(seat.id)
+        else:
+            total_amount += seat.price
+    
+    if unavailable_seats:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Seats {unavailable_seats} are not available"
+        )
+    
+    # Lock the seats
+    booking_reference = str(uuid.uuid4())[:8].upper()
+    expires_at = current_time + timedelta(minutes=10)
+    
+    for seat in seats:
+        seat.status = "locked"
+        seat.locked_at = current_time
+    
+    db.commit()
+    
+    return BookSeatResponse(
+        booking_reference=booking_reference,
+        seat_ids=booking_request.seat_ids,
+        total_amount=total_amount,
+        status="locked",
+        expires_at=expires_at,
+        message=f"Seats locked for 10 minutes. Complete payment before {expires_at.strftime('%H:%M:%S')}"
     )
