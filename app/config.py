@@ -8,12 +8,11 @@ class Config:
         
         # Required from .env
         self.secret_key = self._get_required("SECRET_KEY")
-        self.admin_email = self._get_required("ADMIN_EMAIL")
-        self.admin_password = self._get_required("ADMIN_PASSWORD")
         
         # Optional from .env
         self.database_url = os.getenv("DATABASE_URL", "sqlite:///./movie_ticketing.db")
         self.debug = os.getenv("DEBUG", "true").lower() == "true"
+        self.base_url = os.getenv("BASE_URL", "http://localhost:8000")
         
         # Hardcoded constants
         self.algorithm = "HS256"
