@@ -13,7 +13,7 @@ Complete movie booking system with FastAPI backend + Streamlit frontend, featuri
 ### 1. Install & Configure
 ```bash
 # Clone and setup
-git clone <your-repo-url>
+git clone <https://github.com/fuzztobread/bookmemovie.git>
 cd bookmemovie
 python -m venv menv
 source menv/bin/activate  # Windows: menv\Scripts\activate
