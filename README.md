@@ -157,7 +157,7 @@ BASE_URL=http://localhost:8000
 
 # Production
 DEBUG=false
-BASE_URL=https://your-domain.com
+BASE_URL=https://localhost:8000
 ```
 
 ##  Usage
