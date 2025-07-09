@@ -25,14 +25,15 @@ app = FastAPI(
     **Version:** {config.app_version}
     
     ### How to use:
-    1. **Create Admin** (one-time): POST `/api/auth/create-admin`
+    1. **Setup Admin** (first time): Use the "Admin Setup" tab to create admin user
     2. **Login**: POST `/api/auth/login` with your credentials
     3. **Authorize**: Click the 🔒 "Authorize" button and enter: `Bearer YOUR_TOKEN`
     4. **Use protected endpoints**: Now you can access authenticated routes
     
-    ### Admin Credentials:
-    - Email: `{config.admin_email}`
-    - Password: `{config.admin_password}`
+    ### Setup Process:
+    1. Create admin user via frontend or API
+    2. Login with your admin credentials
+    3. Start managing movies and events
     
     ### Configuration Status:
     - Debug Mode: `{config.debug}`
@@ -56,8 +57,16 @@ def read_root():
         "version": config.app_version,
         "auth": "JWT enabled 🔒",
         "docs": "Visit /docs to test the API with authentication 📖",
-        "admin_email": config.admin_email,
-        "setup": "Create admin first: POST /api/auth/create-admin"
+        "setup": "Create admin user first via frontend or POST /api/auth/create-admin"
     }
 
-
+@app.get("/health", tags=["📋 System Info"])
+def health_check():
+    """Health check endpoint"""
+    return {
+        "status": "healthy",
+        "app": config.app_name,
+        "version": config.app_version,
+        "database": "connected" if engine else "disconnected",
+        "config_valid": True
+    }
