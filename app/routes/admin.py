@@ -4,11 +4,13 @@ from database import get_db
 from models.movie import Movie
 from models.event import Event
 from models.seat import Seat
+from models.user import User
 from schemas.admin import (
     CreateMovieRequest, UpdateMovieRequest, MovieResponse,
     CreateEventRequest, UpdateEventRequest, EventAdminResponse,
     DeleteResponse
 )
+from core.auth import get_current_admin_user
 from datetime import datetime, timezone
 
 router = APIRouter()
@@ -16,14 +18,21 @@ router = APIRouter()
 # ============ MOVIE MANAGEMENT ============
 
 @router.get("/movies", response_model=list[MovieResponse])
-def get_all_movies(db: Session = Depends(get_db)):
-    """Get all movies"""
+def get_all_movies(
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """Get all movies (Admin only)"""
     movies = db.query(Movie).all()
     return movies
 
 @router.post("/movies", response_model=MovieResponse)
-def create_movie(movie_request: CreateMovieRequest, db: Session = Depends(get_db)):
-    """Create a new movie"""
+def create_movie(
+    movie_request: CreateMovieRequest, 
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """Create a new movie (Admin only)"""
     movie = Movie(
         title=movie_request.title,
         description=movie_request.description
@@ -36,8 +45,13 @@ def create_movie(movie_request: CreateMovieRequest, db: Session = Depends(get_db
     return movie
 
 @router.put("/movies/{movie_id}", response_model=MovieResponse)
-def update_movie(movie_id: int, movie_request: UpdateMovieRequest, db: Session = Depends(get_db)):
-    """Update an existing movie"""
+def update_movie(
+    movie_id: int, 
+    movie_request: UpdateMovieRequest, 
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """Update an existing movie (Admin only)"""
     movie = db.query(Movie).filter(Movie.id == movie_id).first()
     
     if not movie:
@@ -55,8 +69,12 @@ def update_movie(movie_id: int, movie_request: UpdateMovieRequest, db: Session =
     return movie
 
 @router.delete("/movies/{movie_id}", response_model=DeleteResponse)
-def delete_movie(movie_id: int, db: Session = Depends(get_db)):
-    """Delete a movie and all its events"""
+def delete_movie(
+    movie_id: int, 
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """Delete a movie and all its events (Admin only)"""
     movie = db.query(Movie).filter(Movie.id == movie_id).first()
     
     if not movie:
@@ -85,8 +103,11 @@ def delete_movie(movie_id: int, db: Session = Depends(get_db)):
 # ============ EVENT/SHOWTIME MANAGEMENT ============
 
 @router.get("/events", response_model=list[EventAdminResponse])
-def get_all_events_admin(db: Session = Depends(get_db)):
-    """Get all events with detailed information"""
+def get_all_events_admin(
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """Get all events with detailed information (Admin only)"""
     events = db.query(Event).join(Movie).all()
     
     event_responses = []
@@ -114,8 +135,12 @@ def get_all_events_admin(db: Session = Depends(get_db)):
     return event_responses
 
 @router.post("/events", response_model=EventAdminResponse)
-def create_event(event_request: CreateEventRequest, db: Session = Depends(get_db)):
-    """Create a new event/showtime and generate seats"""
+def create_event(
+    event_request: CreateEventRequest, 
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """Create a new event/showtime and generate seats (Admin only)"""
     
     # Check if movie exists
     movie = db.query(Movie).filter(Movie.id == event_request.movie_id).first()
@@ -148,8 +173,13 @@ def create_event(event_request: CreateEventRequest, db: Session = Depends(get_db
     )
 
 @router.put("/events/{event_id}", response_model=EventAdminResponse)
-def update_event(event_id: int, event_request: UpdateEventRequest, db: Session = Depends(get_db)):
-    """Update an existing event"""
+def update_event(
+    event_id: int, 
+    event_request: UpdateEventRequest, 
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """Update an existing event (Admin only)"""
     event = db.query(Event).filter(Event.id == event_id).first()
     
     if not event:
@@ -188,8 +218,12 @@ def update_event(event_id: int, event_request: UpdateEventRequest, db: Session =
     )
 
 @router.delete("/events/{event_id}", response_model=DeleteResponse)
-def delete_event(event_id: int, db: Session = Depends(get_db)):
-    """Delete an event and all its seats"""
+def delete_event(
+    event_id: int, 
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """Delete an event and all its seats (Admin only)"""
     event = db.query(Event).filter(Event.id == event_id).first()
     
     if not event:
