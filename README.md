@@ -1,245 +1,203 @@
-# 🎬 Movie Ticketing System
+# Bookmemovie:Movie Ticketing System
 
-A complete movie ticket booking system with FastAPI backend and Streamlit frontend, featuring JWT authentication, role-based access control, and real-time seat management.
+Complete movie booking system with FastAPI backend + Streamlit frontend, featuring JWT authentication and real-time seat management.
 
-##  Features
+##  Key Features
 
-###  **Customer Features**
-- **Browse Movies**: View available movies with showtimes
-- **Interactive Seat Selection**: Visual seat map with real-time availability
-- **Seat Booking**: Select multiple seats with automatic pricing
-- **Payment System**: Secure booking confirmation and payment processing
-- **Booking Management**: Cancel bookings with automatic seat release
-- **Session Persistence**: Login state preserved across page reloads
+- ** Customer**: Browse movies, book seats, manage bookings
+- ** Admin**: Manage movies/events, view analytics, system control
+- ** Security**: JWT auth, role-based access, session persistence
 
-###  **Admin Features**
-- **Admin Dashboard**: Comprehensive system overview and analytics
-- **Movie Management**: Add, edit, and delete movies with descriptions
-- **Event Management**: Schedule showtimes with automatic seat generation
-- **Real-time Analytics**: Track bookings, occupancy rates, and seat statistics
-- **Business Logic Protection**: Prevent deletion of events with active bookings
+##  Quick Setup
 
-###  **Security Features**
-- **JWT Authentication**: Secure token-based authentication
-- **Role-based Access**: Separate user and admin permissions
-- **Password Hashing**: Secure bcrypt password storage
-- **Token Validation**: Automatic session management and expiry handling
-- **Protected Endpoints**: All sensitive operations require authentication
+### 1. Install & Configure
+```bash
+# Clone and setup
+git clone <your-repo-url>
+cd bookmemovie
+python -m venv menv
+source menv/bin/activate  # Windows: menv\Scripts\activate
 
-##  Tech Stack
+# Install dependencies
+pip install fastapi uvicorn streamlit python-dotenv passlib[bcrypt] python-jose[cryptography] sqlalchemy pandas requests pydantic-settings
 
-### **Backend**
-- **FastAPI**: High-performance Python web framework
-- **SQLAlchemy**: Database ORM for data management
-- **JWT**: JSON Web Tokens for authentication
-- **Pydantic**: Data validation and serialization
-- **Passlib**: Password hashing and verification
-- **SQLite**: Default database (easily configurable to PostgreSQL)
+# Setup environment
+cp .env.example app/.env
+python -c "import secrets; print('SECRET_KEY=' + secrets.token_urlsafe(32))"
+# Add the generated SECRET_KEY to app/.env
+```
 
-### **Frontend**
-- **Streamlit**: Interactive web application framework
-- **Pandas**: Data manipulation and analysis
-- **Requests**: HTTP client for API communication
+### 2. Run Applications
+```bash
+# Terminal 1: Backend API
+cd app && uvicorn main:app --reload
+
+# Terminal 2: Frontend Dashboard  
+streamlit run app/dashboard.py
+```
+
+**Access**: Frontend → `http://localhost:8501` | API Docs → `http://localhost:8000/docs`
+
+## 👥 Complete Admin Workflow
+
+### Initial Setup
+1. **Open dashboard** → Go to **"Admin Setup"** tab
+2. **Create admin**: `admin@company.com` / `secure123`
+3. **Login** with admin credentials
+
+### Movie Management Flow
+```bash
+# 1. Add Movies
+Admin Panel → Manage Movies → Add New Movie
+Title: "Spider-Man: No Way Home"
+Description: "Epic superhero adventure..."
+→ Click "Add Movie"
+
+# 2. Edit Movies  
+→ Click "✏️ Edit" next to movie
+→ Update title/description
+→ Click "Save Changes"
+
+# 3. Delete Movies
+→ Click "🗑️ Delete" (only if no active events)
+```
+
+### Event Management Flow
+```bash
+# 1. Schedule Events
+Admin Panel → Manage Events → Schedule New Event
+Movie: "Spider-Man: No Way Home"
+Date: "2025-07-15" 
+Time: "19:30"
+Seats: 30
+→ Click "Schedule Event"
+
+# 2. Edit Events
+→ Click "✏️ Edit" next to event
+→ Change movie/date/time
+→ Click "Save Changes"
+
+# 3. Delete Events  
+→ Click "🗑️ Delete" (protected if bookings exist)
+```
+
+### Monitor System
+```bash
+Admin Panel → System Overview
+- View total events, seats, bookings
+- Check occupancy rates
+- Monitor real-time statistics
+- Export event data
+```
+
+## 🎫 Customer Usage Flow
+
+### Booking Process
+1. **Browse**: View movies → Select showtime
+2. **Seats**: Choose seats on visual map
+3. **Book**: Enter details → Get booking reference
+4. **Pay**: Confirm payment within 10 minutes
+5. **Manage**: Cancel booking if needed
+
+## 🔌 Essential API Endpoints
+
+### Authentication
+```bash
+POST /api/auth/create-admin    # Setup admin
+POST /api/auth/login          # Get JWT token
+GET  /api/auth/me             # User info
+```
+
+### Customer Operations
+```bash
+GET  /api/events                      # List movies/showtimes
+GET  /api/events/{id}/seats          # Seat availability
+POST /api/book-seats                 # Book tickets
+POST /api/confirm-payment            # Confirm booking
+POST /api/cancel-booking             # Cancel booking
+```
+
+### Admin Operations  
+```bash
+# Movies
+GET    /api/admin/movies           # List all movies
+POST   /api/admin/movies           # Add movie
+PUT    /api/admin/movies/{id}      # Edit movie
+DELETE /api/admin/movies/{id}      # Delete movie
+
+# Events  
+GET    /api/admin/events           # List events + stats
+POST   /api/admin/events           # Create event
+PUT    /api/admin/events/{id}      # Edit event
+DELETE /api/admin/events/{id}      # Delete event
+```
+
+##  Authentication Flow
+
+```bash
+# 1. Login → Get token
+curl -X POST "http://localhost:8000/api/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "admin@company.com", "password": "secure123"}'
+
+# Response: {"access_token": "eyJhbGc...", "user": {...}}
+
+# 2. Use token for protected endpoints
+curl -X GET "http://localhost:8000/api/admin/movies" \
+  -H "Authorization: Bearer eyJhbGc..."
+```
 
 ## 📁 Project Structure
 
 ```
 bookmemovie/
-├── .env.example              # Environment variables template
-├── .gitignore               # Git ignore rules
-├── README.md                # Project documentation
-├── requirements.txt         # Python dependencies
-├── menv/                    # Virtual environment (gitignored)
-└── app/
-    ├── .env                 # Environment variables (gitignored)
-    ├── config.py            # Configuration management
-    ├── database.py          # Database connection and setup
-    ├── main.py              # FastAPI application entry point
-    ├── dashboard.py         # Streamlit frontend application
-    ├── core/
-    │   └── auth.py          # Authentication and authorization
-    ├── models/
-    │   ├── user.py          # User model
-    │   ├── movie.py         # Movie model
-    │   ├── event.py         # Event model
-    │   └── seat.py          # Seat model
-    ├── routes/
-    │   ├── auth.py          # Authentication routes
-    │   ├── seat.py          # Seat booking routes
-    │   └── admin.py         # Admin management routes
-    └── schemas/
-        ├── auth.py          # Authentication schemas
-        ├── seat.py          # Seat booking schemas
-        └── admin.py         # Admin schemas
+├── app/
+│   ├── main.py              # FastAPI app
+│   ├── dashboard.py         # Streamlit UI
+│   ├── config.py           # Environment config
+│   ├── database.py         # DB connection
+│   ├── core/auth.py        # JWT authentication
+│   ├── models/             # SQLAlchemy models
+│   ├── routes/             # API endpoints
+│   └── schemas/            # Pydantic schemas
+├── .env.example            # Config template
+└── README.md
 ```
-
-##  Installation & Setup
-
-### **Prerequisites**
-- Python 3.8+
-- pip (Python package manager)
-- Git
-
-### **1. Clone the Repository**
-```bash
-git clone <your-repo-url>
-cd bookmemovie
-```
-
-### **2. Create Virtual Environment**
-```bash
-python -m venv menv
-source menv/bin/activate  # On Windows: menv\Scripts\activate
-```
-
-### **3. Install Dependencies**
-```bash
-pip install -r requirements.txt```
-
-### **4. Environment Configuration**
-```bash
-# Copy the environment template
-cp .env.example app/.env
-
-# Generate a secure SECRET_KEY
-python -c "import secrets; print('SECRET_KEY=' + secrets.token_urlsafe(32))"
-
-# Edit app/.env with your configuration
-```
-
-### **5. Required Environment Variables**
-Edit `app/.env` with your values:
-
-```bash
-# REQUIRED - Use the generated secret key
-SECRET_KEY=your-generated-secret-key-here
-
-# OPTIONAL - Application settings
-DATABASE_URL=sqlite:///./movie_ticketing.db
-DEBUG=true
-BASE_URL=http://localhost:8000
-```
-
-##  Running the Application
-
-### **Start the Backend API**
-```bash
-cd app
-uvicorn main:app --reload
-```
-The API will be available at: `http://localhost:8000`
-
-### **Start the Frontend Dashboard**
-```bash
-# In a new terminal
-cd bookmemovie
-streamlit run app/dashboard.py
-```
-The dashboard will be available at: `http://localhost:8501`
-
-### **Access API Documentation**
-- **Swagger UI**: `http://localhost:8000/docs`
-- **ReDoc**: `http://localhost:8000/redoc`
 
 ##  Configuration
 
-### **Database Configuration**
+### Required Environment Variables
 ```bash
-# SQLite (Default - for development)
+# app/.env
+SECRET_KEY=your-32-char-secret-key-here
 DATABASE_URL=sqlite:///./movie_ticketing.db
-
-
-### **Environment-Specific Settings**
-```bash
-# Development
 DEBUG=true
 BASE_URL=http://localhost:8000
-
-# Production
-DEBUG=false
-BASE_URL=https://localhost:8000
 ```
 
-##  Usage
-
-### **First-Time Setup**
-1. **Start both applications** (backend and frontend)
-2. **Open the dashboard** at `http://localhost:8501`
-3. **Go to "Admin Setup" tab**
-4. **Create admin user** with your chosen credentials
-5. **Login** with your admin credentials
-
-### **Admin Operations**
-1. **Login** as admin
-2. **Add movies** to the catalog
-3. **Schedule events** (showtimes) for movies
-4. **Monitor bookings** and system analytics
-
-### **Customer Operations**
-1. **Register** or **login** as a customer
-2. **Browse available movies** and showtimes
-3. **Select seats** using the interactive seat map
-4. **Book tickets** and confirm payment
-5. **Manage bookings** (cancel if needed)
-
-##  API Endpoints
-
-### **Authentication**
-- `POST /api/auth/register` - Register new user
-- `POST /api/auth/login` - User login
-- `GET /api/auth/me` - Get current user info
-- `POST /api/auth/create-admin` - Create admin user
-
-### **Customer Operations**
-- `GET /api/events` - List all events
-- `GET /api/events/{event_id}/seats` - Get seats for event
-- `POST /api/book-seats` - Book seats
-- `POST /api/confirm-payment` - Confirm booking payment
-- `POST /api/cancel-booking` - Cancel booking
-
-### **Admin Operations**
-- `GET /api/admin/movies` - List all movies
-- `POST /api/admin/movies` - Create movie
-- `PUT /api/admin/movies/{movie_id}` - Update movie
-- `DELETE /api/admin/movies/{movie_id}` - Delete movie
-- `GET /api/admin/events` - List all events (admin view)
-- `POST /api/admin/events` - Create event
-- `PUT /api/admin/events/{event_id}` - Update event
-- `DELETE /api/admin/events/{event_id}` - Delete event
-
-## 🔐 Security
-
-### **Authentication Flow**
-1. **User registers/logs in** → Receives JWT token
-2. **Token included in requests** → `Authorization: Bearer <token>`
-3. **Server validates token** → Grants/denies access
-4. **Token expires** → User must login again
-
-### **Role-Based Access**
-- **Users**: Can browse movies, book seats, manage their bookings
-- **Admins**: Full system access including movie/event management
-
-### **Password Security**
-- **Bcrypt hashing** for password storage
-
-
-
-##  Testing
-
-### **Test Admin Flow**
+### Production Settings
 ```bash
-# 1. Create admin via API
-curl -X POST "http://localhost:8000/api/auth/create-admin" \
-  -H "Content-Type: application/json" \
-  -d '{"email": "admin@test.com", "password": "secure123", "full_name": "Test Admin"}'
-
-# 2. Login and get token
-curl -X POST "http://localhost:8000/api/auth/login" \
-  -H "Content-Type: application/json" \
-  -d '{"email": "admin@test.com", "password": "secure123"}'
-
-# 3. Use token for authenticated requests
-curl -X GET "http://localhost:8000/api/admin/movies" \
-  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+SECRET_KEY=strong-production-secret
+DATABASE_URL=postgresql://user:pass@localhost/moviedb
+DEBUG=false
+BASE_URL=https://your-domain.com
 ```
+
+##  Tech Stack
+
+**Backend**: FastAPI, SQLAlchemy, JWT, Pydantic  
+**Frontend**: Streamlit, Pandas, Requests  
+**Database**: SQLite (dev) / PostgreSQL (prod)  
+**Auth**: JWT tokens with bcrypt password hashing
+
+##  Key Business Logic
+
+- **Seat Locking**: 10-minute reservation window
+- **Role Protection**: Admin-only movie/event management  
+- **Booking Protection**: Cannot delete events with active bookings
+- **Session Persistence**: Login survives page reloads
+- **Real-time Updates**: Live seat availability
+
+---
+
 
