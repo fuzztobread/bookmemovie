@@ -935,24 +935,4 @@ st.divider()
 col1, col2 = st.columns([3, 1])
 with col1:
     st.caption("🎬 Movie Ticketing System - Built with FastAPI + Streamlit + JWT Authentication")
-with col2:
-    if st.button("ℹ️ About"):
-        st.info("""
-        **Features:**
-        - 🔐 JWT Authentication with role-based access
-        - 🎥 Browse available movies and showtimes
-        - 🎫 Interactive seat selection and booking
-        - 💳 Payment confirmation system
-        - 📊 Real-time admin dashboard
-        - 🎬 Movie management (Admin only)
-        - 🎭 Event management with auto seat generation (Admin only)
-        
-        **Security:**
-        - JWT tokens with 30-minute expiry
-        - Role-based access control (User/Admin)
-        - Protected admin endpoints
-        - Secure password hashing
-        - Session persistence across page reloads
-        
-        **Tech Stack:** FastAPI (Backend) + Streamlit (Frontend) + SQLite (Database) + JWT Auth
-        """)
+    
