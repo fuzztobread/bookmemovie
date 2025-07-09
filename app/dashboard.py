@@ -2,34 +2,138 @@ import streamlit as st
 import requests
 import pandas as pd
 from datetime import datetime
+import sys
+from pathlib import Path
+import json
+import base64
+from urllib.parse import urlencode, parse_qs
 
-# API base URL
-API_BASE = "http://localhost:8000/api"
-ADMIN_API = "http://localhost:8000/api/admin"
-AUTH_API = "http://localhost:8000/api/auth"
+# Add app directory to path to import config
+app_dir = Path(__file__).parent
+if str(app_dir) not in sys.path:
+    sys.path.append(str(app_dir))
+
+from config import get_config
+
+# Get config once (same pattern as backend)
+config = get_config()
+
+# API URLs from config
+API_BASE = f"{config.base_url}/api"
+ADMIN_API = f"{config.base_url}/api/admin"
+AUTH_API = f"{config.base_url}/api/auth"
 
 # Page config
 st.set_page_config(page_title="🎬 Movie Ticketing System", layout="wide")
 
+# Session persistence using query parameters
+def save_session_to_url(access_token, user_info, is_admin):
+    """Save session data to URL query parameters"""
+    if access_token and user_info:
+        # Encode session data
+        session_data = {
+            "token": access_token,
+            "user": user_info,
+            "admin": is_admin
+        }
+        # Base64 encode to make it URL safe
+        encoded_data = base64.b64encode(json.dumps(session_data).encode()).decode()
+        
+        # Update URL with session data
+        query_params = {"session": encoded_data}
+        st.query_params.update(query_params)
+
+def load_session_from_url():
+    """Load session data from URL query parameters"""
+    try:
+        # Get session data from URL
+        query_params = st.query_params
+        session_param = query_params.get("session")
+        
+        if session_param:
+            # Decode session data
+            decoded_data = base64.b64decode(session_param.encode()).decode()
+            session_data = json.loads(decoded_data)
+            
+            return (
+                session_data.get("token"),
+                session_data.get("user"),
+                session_data.get("admin", False)
+            )
+    except Exception as e:
+        # If there's any error decoding, clear the session
+        st.query_params.clear()
+    
+    return None, None, False
+
+def clear_session_from_url():
+    """Clear session data from URL"""
+    st.query_params.clear()
+
+# Initialize session state with URL persistence
+def init_session_state():
+    """Initialize session state with URL persistence"""
+    # Load from URL if not already in session state
+    if 'access_token' not in st.session_state or not st.session_state.access_token:
+        token, user_info, is_admin = load_session_from_url()
+        st.session_state.access_token = token
+        st.session_state.user_info = user_info
+        st.session_state.is_admin = is_admin
+    
+    # Initialize other session state variables
+    if 'selected_event' not in st.session_state:
+        st.session_state.selected_event = None
+    if 'seats_loaded' not in st.session_state:
+        st.session_state.seats_loaded = False
+    if 'seat_data' not in st.session_state:
+        st.session_state.seat_data = None
+
 # Initialize session state
-if 'selected_event' not in st.session_state:
-    st.session_state.selected_event = None
-if 'seats_loaded' not in st.session_state:
-    st.session_state.seats_loaded = False
-if 'seat_data' not in st.session_state:
-    st.session_state.seat_data = None
-if 'access_token' not in st.session_state:
-    st.session_state.access_token = None
-if 'user_info' not in st.session_state:
-    st.session_state.user_info = None
-if 'is_admin' not in st.session_state:
-    st.session_state.is_admin = False
+init_session_state()
 
 def get_auth_headers():
     """Get authorization headers for API requests"""
     if st.session_state.access_token:
         return {"Authorization": f"Bearer {st.session_state.access_token}"}
     return {}
+
+def validate_token():
+    """Validate if current token is still valid"""
+    if not st.session_state.access_token:
+        return False
+    
+    try:
+        response = requests.get(f"{AUTH_API}/me", headers=get_auth_headers())
+        if response.status_code == 200:
+            return True
+        else:
+            # Token is invalid, logout user
+            logout_user()
+            return False
+    except:
+        logout_user()
+        return False
+
+def check_auth_on_page_load():
+    """Check authentication status when page loads"""
+    if st.session_state.access_token:
+        if not validate_token():
+            st.error("⚠️ Your session has expired. Please login again.")
+            st.session_state.access_token = None
+            st.session_state.user_info = None
+            st.session_state.is_admin = False
+            st.rerun()
+    elif st.query_params.get("session"):
+        # If there's session data in URL but not in session state, try to load it
+        token, user_info, is_admin = load_session_from_url()
+        if token and user_info:
+            st.session_state.access_token = token
+            st.session_state.user_info = user_info
+            st.session_state.is_admin = is_admin
+            st.rerun()
+
+# Check authentication on page load
+check_auth_on_page_load()
 
 def login_user(email, password):
     """Login user and store token"""
@@ -41,9 +145,14 @@ def login_user(email, password):
         
         if response.status_code == 200:
             data = response.json()
+            # Store in session state
             st.session_state.access_token = data["access_token"]
             st.session_state.user_info = data["user"]
             st.session_state.is_admin = data["user"]["role"] == "admin"
+            
+            # Save to URL for persistence across page reloads
+            save_session_to_url(data["access_token"], data["user"], data["user"]["role"] == "admin")
+            
             return True, "Login successful!"
         else:
             error = response.json().get("detail", "Login failed")
@@ -53,9 +162,13 @@ def login_user(email, password):
 
 def logout_user():
     """Logout user and clear session"""
+    # Clear session state
     st.session_state.access_token = None
     st.session_state.user_info = None
     st.session_state.is_admin = False
+    
+    # Clear URL session data
+    clear_session_from_url()
 
 def register_user(email, password, full_name):
     """Register new user"""
@@ -70,6 +183,23 @@ def register_user(email, password, full_name):
             return True, "Registration successful! Please login."
         else:
             error = response.json().get("detail", "Registration failed")
+            return False, error
+    except Exception as e:
+        return False, f"Connection error: {e}"
+
+def create_admin_user(email, password, full_name="System Administrator"):
+    """Create admin user"""
+    try:
+        response = requests.post(f"{AUTH_API}/create-admin", json={
+            "email": email,
+            "password": password,
+            "full_name": full_name
+        })
+        
+        if response.status_code == 200:
+            return True, "Admin user created successfully! You can now login."
+        else:
+            error = response.json().get("detail", "Admin creation failed")
             return False, error
     except Exception as e:
         return False, f"Connection error: {e}"
@@ -98,14 +228,14 @@ with col3:
 if not st.session_state.user_info:
     st.header("🔐 Authentication Required")
     
-    auth_tab1, auth_tab2 = st.tabs(["🔑 Login", "📝 Register"])
+    auth_tab1, auth_tab2, auth_tab3 = st.tabs(["🔑 Login", "📝 Register", "🔧 Admin Setup"])
     
     with auth_tab1:
         st.subheader("Login to Your Account")
         
         with st.form("login_form"):
-            email = st.text_input("Email:", placeholder="admin@movie-tickets.com")
-            password = st.text_input("Password:", type="password", placeholder="admin123")
+            email = st.text_input("Email:", placeholder="your-email@example.com")
+            password = st.text_input("Password:", type="password")
             
             if st.form_submit_button("🔑 Login", type="primary"):
                 if email and password:
@@ -117,15 +247,6 @@ if not st.session_state.user_info:
                         st.error(message)
                 else:
                     st.warning("Please enter both email and password")
-        
-        # Show default admin credentials
-        st.info("""
-        **Default Admin Credentials:**
-        - Email: `admin@movie-tickets.com`
-        - Password: `admin123`
-        
-        **Note:** Change these credentials in production!
-        """)
     
     with auth_tab2:
         st.subheader("Create New Account")
@@ -138,6 +259,25 @@ if not st.session_state.user_info:
             if st.form_submit_button("📝 Register", type="primary"):
                 if reg_email and reg_password and reg_full_name:
                     success, message = register_user(reg_email, reg_password, reg_full_name)
+                    if success:
+                        st.success(message)
+                    else:
+                        st.error(message)
+                else:
+                    st.warning("Please fill in all fields")
+    
+    with auth_tab3:
+        st.subheader("Create Admin User")
+        st.info("⚠️ Only create admin if no admin user exists yet.")
+        
+        with st.form("admin_setup_form"):
+            admin_email = st.text_input("Admin Email:", placeholder="admin@yourcompany.com")
+            admin_password = st.text_input("Admin Password:", type="password", placeholder="Create a secure password")
+            admin_full_name = st.text_input("Admin Full Name:", placeholder="System Administrator")
+            
+            if st.form_submit_button("🔧 Create Admin", type="primary"):
+                if admin_email and admin_password and admin_full_name:
+                    success, message = create_admin_user(admin_email, admin_password, admin_full_name)
                     if success:
                         st.success(message)
                     else:
@@ -170,6 +310,10 @@ else:
     st.sidebar.write(f"👤 {st.session_state.user_info['full_name']}")
     st.sidebar.write(f"📧 {st.session_state.user_info['email']}")
     st.sidebar.write(f"🏷️ {st.session_state.user_info['role'].title()}")
+    
+    # Session status info
+    st.sidebar.divider()
+    
 
     if page == "🎥 Browse Movies":
         st.header("Available Movies")
@@ -488,15 +632,327 @@ else:
             except Exception as e:
                 st.error(f"Error loading admin data: {e}")
         
-        # The rest of the admin tabs stay the same...
+        # The rest of the admin tabs - COMPLETE IMPLEMENTATION
         with tab2:
             st.subheader("🎬 Movie Content Management")
-            # ... (rest of movies management code stays same)
             
+            # Display existing movies
+            try:
+                response = requests.get(f"{ADMIN_API}/movies", headers=get_auth_headers())
+                if response.status_code == 200:
+                    movies = response.json()
+                    
+                    if movies:
+                        st.write("### Current Movie Catalog")
+                        
+                        # Display movies with action buttons
+                        for movie in movies:
+                            with st.container():
+                                col1, col2, col3, col4 = st.columns([3, 2, 1, 1])
+                                
+                                with col1:
+                                    st.write(f"**{movie['title']}**")
+                                    st.caption(movie['description'] or "No description")
+                                
+                                with col2:
+                                    st.write(f"**Movie ID:** {movie['id']}")
+                                
+                                with col3:
+                                    # Edit button
+                                    if st.button("✏️ Edit", key=f"edit_movie_{movie['id']}"):
+                                        st.session_state[f"editing_movie_{movie['id']}"] = True
+                                
+                                with col4:
+                                    # Delete button
+                                    if st.button("🗑️ Delete", key=f"delete_movie_{movie['id']}", type="secondary"):
+                                        try:
+                                            del_response = requests.delete(f"{ADMIN_API}/movies/{movie['id']}", headers=get_auth_headers())
+                                            if del_response.status_code == 200:
+                                                st.success("✅ Movie deleted successfully!")
+                                                st.rerun()
+                                            else:
+                                                st.error("❌ Failed to delete movie")
+                                        except Exception as e:
+                                            st.error(f"❌ Error: {e}")
+                                
+                                # Edit form (shown when edit button is clicked)
+                                if st.session_state.get(f"editing_movie_{movie['id']}", False):
+                                    with st.form(f"edit_movie_form_{movie['id']}"):
+                                        st.write(f"### ✏️ Edit: {movie['title']}")
+                                        new_title = st.text_input("Title:", value=movie['title'])
+                                        new_description = st.text_area("Description:", value=movie['description'] or "")
+                                        
+                                        col_save, col_cancel = st.columns(2)
+                                        with col_save:
+                                            if st.form_submit_button("💾 Save Changes", type="primary"):
+                                                try:
+                                                    update_data = {
+                                                        "title": new_title,
+                                                        "description": new_description
+                                                    }
+                                                    update_response = requests.put(f"{ADMIN_API}/movies/{movie['id']}", 
+                                                                                 json=update_data, headers=get_auth_headers())
+                                                    if update_response.status_code == 200:
+                                                        st.success("✅ Movie updated successfully!")
+                                                        st.session_state[f"editing_movie_{movie['id']}"] = False
+                                                        st.rerun()
+                                                    else:
+                                                        st.error("❌ Failed to update movie")
+                                                except Exception as e:
+                                                    st.error(f"❌ Error: {e}")
+                                        
+                                        with col_cancel:
+                                            if st.form_submit_button("❌ Cancel"):
+                                                st.session_state[f"editing_movie_{movie['id']}"] = False
+                                                st.rerun()
+                                
+                                st.divider()
+                    else:
+                        st.info("📽️ No movies in catalog. Add your first movie below!")
+                elif response.status_code == 401:
+                    st.error("🔒 Authentication failed. Please login again.")
+                    logout_user()
+                    st.rerun()
+                elif response.status_code == 403:
+                    st.error("🚫 Access denied. Admin privileges required.")
+                else:
+                    st.error("❌ Failed to load movies")
+            except Exception as e:
+                st.error(f"❌ Error loading movies: {e}")
+            
+            # Add new movie form
+            st.divider()
+            st.subheader("➕ Add New Movie to Catalog")
+            
+            with st.form("add_movie_form"):
+                movie_title = st.text_input("Movie Title:", placeholder="e.g., Spider-Man: No Way Home")
+                movie_description = st.text_area("Description:", placeholder="Brief movie description for customers...")
+                
+                if st.form_submit_button("🎬 Add Movie", type="primary"):
+                    if movie_title:
+                        try:
+                            movie_data = {
+                                "title": movie_title,
+                                "description": movie_description if movie_description else None
+                            }
+                            
+                            response = requests.post(f"{ADMIN_API}/movies", json=movie_data, headers=get_auth_headers())
+                            
+                            if response.status_code == 200:
+                                result = response.json()
+                                st.success(f"✅ Movie '{result['title']}' added to catalog!")
+                                st.rerun()
+                            elif response.status_code == 401:
+                                st.error("🔒 Authentication failed. Please login again.")
+                                logout_user()
+                                st.rerun()
+                            else:
+                                st.error("❌ Failed to add movie")
+                        except Exception as e:
+                            st.error(f"❌ Error adding movie: {e}")
+                    else:
+                        st.warning("⚠️ Please enter a movie title")
+        
         with tab3:
             st.subheader("🎭 Event & Showtime Management")
-            # ... (rest of events management code stays same)
+            
+            # Display existing events
+            try:
+                response = requests.get(f"{ADMIN_API}/events", headers=get_auth_headers())
+                if response.status_code == 200:
+                    events = response.json()
+                    
+                    if events:
+                        st.write("### Current Events & Showtimes")
+                        
+                        # Display events with action buttons
+                        for event in events:
+                            with st.container():
+                                col1, col2, col3, col4 = st.columns([3, 2, 1, 1])
+                                
+                                with col1:
+                                    st.write(f"**{event['movie_title']}**")
+                                    st.caption(f"🕐 {event['start_time'][:19].replace('T', ' at ')}")
+                                
+                                with col2:
+                                    st.write(f"**Event ID:** {event['id']}")
+                                    st.write(f"🎭 {event['available_seats']}/{event['total_seats']} available")
+                                    if event['booked_seats'] > 0:
+                                        st.write(f"💰 {event['booked_seats']} confirmed bookings")
+                                
+                                with col3:
+                                    # Edit button
+                                    if st.button("✏️ Edit", key=f"edit_event_{event['id']}"):
+                                        st.session_state[f"editing_event_{event['id']}"] = True
+                                
+                                with col4:
+                                    # Delete button (with business logic)
+                                    if event['booked_seats'] > 0:
+                                        st.button("🔒 Protected", key=f"protected_event_{event['id']}", 
+                                                 disabled=True, help=f"Cannot delete: {event['booked_seats']} confirmed bookings")
+                                    else:
+                                        if st.button("🗑️ Delete", key=f"delete_event_{event['id']}", type="secondary"):
+                                            try:
+                                                del_response = requests.delete(f"{ADMIN_API}/events/{event['id']}", headers=get_auth_headers())
+                                                if del_response.status_code == 200:
+                                                    st.success("✅ Event deleted successfully!")
+                                                    st.rerun()
+                                                else:
+                                                    st.error("❌ Failed to delete event")
+                                            except Exception as e:
+                                                st.error(f"❌ Error: {e}")
+                                
+                                # Edit form (shown when edit button is clicked)
+                                if st.session_state.get(f"editing_event_{event['id']}", False):
+                                    with st.form(f"edit_event_form_{event['id']}"):
+                                        st.write(f"### ✏️ Edit Event: {event['movie_title']}")
+                                        
+                                        # Get movies for dropdown
+                                        try:
+                                            movies_response = requests.get(f"{ADMIN_API}/movies", headers=get_auth_headers())
+                                            if movies_response.status_code == 200:
+                                                movies = movies_response.json()
+                                                movie_options = {movie['title']: movie['id'] for movie in movies}
+                                                
+                                                # Find current movie
+                                                current_movie = next((title for title, id in movie_options.items() if id == event['movie_id']), event['movie_title'])
+                                                
+                                                selected_movie = st.selectbox("Movie:", options=list(movie_options.keys()), 
+                                                                             index=list(movie_options.keys()).index(current_movie) if current_movie in movie_options else 0)
+                                                
+                                                # Parse current start time
+                                                current_datetime = datetime.fromisoformat(event['start_time'].replace('Z', '+00:00'))
+                                                
+                                                col1, col2 = st.columns(2)
+                                                with col1:
+                                                    event_date = st.date_input("Event Date:", value=current_datetime.date())
+                                                with col2:
+                                                    event_time = st.time_input("Start Time:", value=current_datetime.time())
+                                                
+                                                col_save, col_cancel = st.columns(2)
+                                                with col_save:
+                                                    if st.form_submit_button("💾 Save Changes", type="primary"):
+                                                        try:
+                                                            # Combine date and time
+                                                            new_datetime = datetime.combine(event_date, event_time)
+                                                            
+                                                            update_data = {
+                                                                "movie_id": movie_options[selected_movie],
+                                                                "start_time": new_datetime.isoformat()
+                                                            }
+                                                            
+                                                            update_response = requests.put(f"{ADMIN_API}/events/{event['id']}", 
+                                                                                         json=update_data, headers=get_auth_headers())
+                                                            if update_response.status_code == 200:
+                                                                st.success("✅ Event updated successfully!")
+                                                                st.session_state[f"editing_event_{event['id']}"] = False
+                                                                st.rerun()
+                                                            else:
+                                                                st.error("❌ Failed to update event")
+                                                        except Exception as e:
+                                                            st.error(f"❌ Error: {e}")
+                                                
+                                                with col_cancel:
+                                                    if st.form_submit_button("❌ Cancel"):
+                                                        st.session_state[f"editing_event_{event['id']}"] = False
+                                                        st.rerun()
+                                            else:
+                                                st.error("❌ Failed to load movies for editing")
+                                        except Exception as e:
+                                            st.error(f"❌ Error loading movies: {e}")
+                                
+                                st.divider()
+                    else:
+                        st.info("🎭 No events scheduled. Create your first event below!")
+                elif response.status_code == 401:
+                    st.error("🔒 Authentication failed. Please login again.")
+                    logout_user()
+                    st.rerun()
+                else:
+                    st.error("❌ Failed to load events")
+            except Exception as e:
+                st.error(f"❌ Error loading events: {e}")
+            
+            # Add new event form
+            st.divider()
+            st.subheader("➕ Schedule New Event")
+            
+            with st.form("add_event_form"):
+                # Get movies for dropdown
+                try:
+                    movies_response = requests.get(f"{ADMIN_API}/movies", headers=get_auth_headers())
+                    if movies_response.status_code == 200:
+                        movies = movies_response.json()
+                        
+                        if movies:
+                            movie_options = {movie['title']: movie['id'] for movie in movies}
+                            selected_movie = st.selectbox("Select Movie:", options=list(movie_options.keys()))
+                            
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                event_date = st.date_input("Event Date:")
+                            with col2:
+                                event_time = st.time_input("Start Time:")
+                            
+                            total_seats = st.number_input("Theater Capacity (seats):", min_value=1, value=25, max_value=200,
+                                                        help="Total number of seats to generate for this showing")
+                            
+                            if st.form_submit_button("🎭 Schedule Event", type="primary"):
+                                try:
+                                    # Combine date and time
+                                    event_datetime = datetime.combine(event_date, event_time)
+                                    
+                                    event_data = {
+                                        "movie_id": movie_options[selected_movie],
+                                        "start_time": event_datetime.isoformat(),
+                                        "total_seats": total_seats
+                                    }
+                                    
+                                    response = requests.post(f"{ADMIN_API}/events", json=event_data, headers=get_auth_headers())
+                                    
+                                    if response.status_code == 200:
+                                        result = response.json()
+                                        st.success(f"✅ Event scheduled! '{selected_movie}' with {result['total_seats']} seats available for booking.")
+                                        st.rerun()
+                                    elif response.status_code == 401:
+                                        st.error("🔒 Authentication failed. Please login again.")
+                                        logout_user()
+                                        st.rerun()
+                                    else:
+                                        error_detail = response.json().get('detail', 'Unknown error')
+                                        st.error(f"❌ Failed to schedule event: {error_detail}")
+                                except Exception as e:
+                                    st.error(f"❌ Error scheduling event: {e}")
+                        else:
+                            st.warning("⚠️ No movies available. Please add movies first in the 'Manage Movies' tab.")
+                    else:
+                        st.error("❌ Failed to load movies")
+                except Exception as e:
+                    st.error(f"❌ Error loading movies: {e}")
 
 # Footer
 st.divider()
-st.caption("🎬 Movie Ticketing System - Built with FastAPI + Streamlit + JWT Authentication")
+col1, col2 = st.columns([3, 1])
+with col1:
+    st.caption("🎬 Movie Ticketing System - Built with FastAPI + Streamlit + JWT Authentication")
+with col2:
+    if st.button("ℹ️ About"):
+        st.info("""
+        **Features:**
+        - 🔐 JWT Authentication with role-based access
+        - 🎥 Browse available movies and showtimes
+        - 🎫 Interactive seat selection and booking
+        - 💳 Payment confirmation system
+        - 📊 Real-time admin dashboard
+        - 🎬 Movie management (Admin only)
+        - 🎭 Event management with auto seat generation (Admin only)
+        
+        **Security:**
+        - JWT tokens with 30-minute expiry
+        - Role-based access control (User/Admin)
+        - Protected admin endpoints
+        - Secure password hashing
+        - Session persistence across page reloads
+        
+        **Tech Stack:** FastAPI (Backend) + Streamlit (Frontend) + SQLite (Database) + JWT Auth
+        """)
