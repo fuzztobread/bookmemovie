@@ -1,25 +1,52 @@
-# Bookmemovie:Movie Ticketing System
+# 🎬 Movie Ticketing System
 
 Complete movie booking system with FastAPI backend + Streamlit frontend, featuring JWT authentication and real-time seat management.
 
-##  Key Features
+## ✨ Key Features
 
-- ** Customer**: Browse movies, book seats, manage bookings
-- ** Admin**: Manage movies/events, view analytics, system control
-- ** Security**: JWT auth, role-based access, session persistence
+- **🎫 Customer**: Browse movies, book seats, manage bookings
+- **👨‍💼 Admin**: Manage movies/events, view analytics, system control
+- **🔐 Security**: JWT auth, role-based access, session persistence
 
-##  Quick Setup
+##  Libraries Used
+
+```bash
+# Core Framework
+fastapi>=0.104.1              # High-performance web framework
+uvicorn[standard]>=0.24.0      # ASGI server for FastAPI
+streamlit>=1.28.0              # Interactive web applications
+
+# Database & ORM
+sqlalchemy>=2.0.23             # SQL toolkit and ORM
+pandas>=2.1.3                  # Data manipulation and analysis
+
+# Authentication & Security  
+python-jose[cryptography]>=3.3.0   # JWT token handling
+passlib[bcrypt]>=1.7.4         # Password hashing with bcrypt
+python-multipart>=0.0.6       # Form data parsing
+
+# Configuration & HTTP
+python-dotenv>=1.0.0           # Environment variables
+pydantic-settings>=2.0.3      # Settings management
+requests>=2.31.0               # HTTP client library
+
+# Data Validation
+pydantic>=2.5.0                # Data validation using Python type hints
+```
+
+## 🚀 Quick Setup
 
 ### 1. Install & Configure
 ```bash
 # Clone and setup
-git clone <https://github.com/fuzztobread/bookmemovie.git>
+git clone https://github.com/fuzztobread/bookmemovie.git
 cd bookmemovie
 python -m venv menv
 source menv/bin/activate  # Windows: menv\Scripts\activate
 
 # Install dependencies
 pip install -r requirements.txt
+
 # Setup environment
 cp .env.example app/.env
 python -c "import secrets; print('SECRET_KEY=' + secrets.token_urlsafe(32))"
@@ -37,7 +64,7 @@ streamlit run app/dashboard.py
 
 **Access**: Frontend → `http://localhost:8501` | API Docs → `http://localhost:8000/docs`
 
-## 👥 Complete Admin Workflow
+##  Complete Admin Workflow
 
 ### Initial Setup
 1. **Open dashboard** → Go to **"Admin Setup"** tab
@@ -89,7 +116,7 @@ Admin Panel → System Overview
 - Export event data
 ```
 
-## 🎫 Customer Usage Flow
+##  Customer Usage Flow
 
 ### Booking Process
 1. **Browse**: View movies → Select showtime
@@ -98,7 +125,7 @@ Admin Panel → System Overview
 4. **Pay**: Confirm payment within 10 minutes
 5. **Manage**: Cancel booking if needed
 
-## 🔌 Essential API Endpoints
+##  Essential API Endpoints
 
 ### Authentication
 ```bash
@@ -182,14 +209,7 @@ DEBUG=false
 BASE_URL=https://your-domain.com
 ```
 
-##  Tech Stack
-
-**Backend**: FastAPI, SQLAlchemy, JWT, Pydantic  
-**Frontend**: Streamlit, Pandas, Requests  
-**Database**: SQLite (dev) / PostgreSQL (prod)  
-**Auth**: JWT tokens with bcrypt password hashing
-
-##  Key Business Logic
+## 🎯 Key Business Logic
 
 - **Seat Locking**: 10-minute reservation window
 - **Role Protection**: Admin-only movie/event management  
