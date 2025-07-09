@@ -111,7 +111,6 @@ Seats: 30
 ```bash
 Admin Panel → System Overview
 - View total events, seats, bookings
-- Check occupancy rates
 - Monitor real-time statistics
 - Export event data
 ```
