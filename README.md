@@ -2,9 +2,9 @@
 
 A complete movie ticket booking system with FastAPI backend and Streamlit frontend, featuring JWT authentication, role-based access control, and real-time seat management.
 
-## 🚀 Features
+##  Features
 
-### 🎫 **Customer Features**
+###  **Customer Features**
 - **Browse Movies**: View available movies with showtimes
 - **Interactive Seat Selection**: Visual seat map with real-time availability
 - **Seat Booking**: Select multiple seats with automatic pricing
@@ -12,21 +12,21 @@ A complete movie ticket booking system with FastAPI backend and Streamlit fronte
 - **Booking Management**: Cancel bookings with automatic seat release
 - **Session Persistence**: Login state preserved across page reloads
 
-### 👨‍💼 **Admin Features**
+###  **Admin Features**
 - **Admin Dashboard**: Comprehensive system overview and analytics
 - **Movie Management**: Add, edit, and delete movies with descriptions
 - **Event Management**: Schedule showtimes with automatic seat generation
 - **Real-time Analytics**: Track bookings, occupancy rates, and seat statistics
 - **Business Logic Protection**: Prevent deletion of events with active bookings
 
-### 🔐 **Security Features**
+###  **Security Features**
 - **JWT Authentication**: Secure token-based authentication
 - **Role-based Access**: Separate user and admin permissions
 - **Password Hashing**: Secure bcrypt password storage
 - **Token Validation**: Automatic session management and expiry handling
 - **Protected Endpoints**: All sensitive operations require authentication
 
-## 🛠️ Tech Stack
+##  Tech Stack
 
 ### **Backend**
 - **FastAPI**: High-performance Python web framework
@@ -73,7 +73,7 @@ bookmemovie/
         └── admin.py         # Admin schemas
 ```
 
-## 🏗️ Installation & Setup
+##  Installation & Setup
 
 ### **Prerequisites**
 - Python 3.8+
@@ -94,8 +94,7 @@ source menv/bin/activate  # On Windows: menv\Scripts\activate
 
 ### **3. Install Dependencies**
 ```bash
-pip install fastapi uvicorn streamlit python-dotenv passlib[bcrypt] python-jose[cryptography] sqlalchemy pandas requests pydantic-settings
-```
+pip install -r requirements.txt```
 
 ### **4. Environment Configuration**
 ```bash
@@ -121,7 +120,7 @@ DEBUG=true
 BASE_URL=http://localhost:8000
 ```
 
-## 🚀 Running the Application
+##  Running the Application
 
 ### **Start the Backend API**
 ```bash
@@ -142,7 +141,7 @@ The dashboard will be available at: `http://localhost:8501`
 - **Swagger UI**: `http://localhost:8000/docs`
 - **ReDoc**: `http://localhost:8000/redoc`
 
-## 🔧 Configuration
+##  Configuration
 
 ### **Database Configuration**
 ```bash
@@ -161,7 +160,7 @@ DEBUG=false
 BASE_URL=https://your-domain.com
 ```
 
-## 👥 Usage
+##  Usage
 
 ### **First-Time Setup**
 1. **Start both applications** (backend and frontend)
@@ -183,7 +182,7 @@ BASE_URL=https://your-domain.com
 4. **Book tickets** and confirm payment
 5. **Manage bookings** (cancel if needed)
 
-## 🔌 API Endpoints
+##  API Endpoints
 
 ### **Authentication**
 - `POST /api/auth/register` - Register new user
@@ -222,12 +221,10 @@ BASE_URL=https://your-domain.com
 
 ### **Password Security**
 - **Bcrypt hashing** for password storage
-- **Salt rounds** for additional security
-- **No plain text passwords** stored anywhere
 
 
 
-## 🧪 Testing
+##  Testing
 
 ### **Test Admin Flow**
 ```bash
