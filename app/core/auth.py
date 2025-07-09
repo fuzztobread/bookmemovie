@@ -7,17 +7,19 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from database import get_db
 from models.user import User, UserRole
+from config import get_config
 
-# Security configuration
-SECRET_KEY = "your-secret-key-change-in-production-please"
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+# Get config once at module level - no more repeated env var reads!
+config = get_config()
 
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# JWT Bearer token
-security = HTTPBearer()
+# JWT Bearer token with better OpenAPI documentation
+security = HTTPBearer(
+    scheme_name="BearerAuth",
+    description="Enter your JWT token (get it from /api/auth/login)"
+)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a password against its hash"""
@@ -33,15 +35,26 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     if expires_delta:
         expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(minutes=15)
+        expire = datetime.now(timezone.utc) + timedelta(
+            minutes=config.access_token_expire_minutes
+        )
+    
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    encoded_jwt = jwt.encode(
+        to_encode, 
+        config.secret_key, 
+        algorithm=config.algorithm
+    )
     return encoded_jwt
 
 def verify_token(token: str) -> Optional[dict]:
     """Verify and decode JWT token"""
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(
+            token, 
+            config.secret_key, 
+            algorithms=[config.algorithm]
+        )
         email: str = payload.get("sub")
         if email is None:
             return None
