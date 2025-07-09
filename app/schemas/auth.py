@@ -11,6 +11,11 @@ class UserRegister(BaseModel):
     password: str
     full_name: str
 
+class CreateAdminRequest(BaseModel):
+    email: EmailStr
+    password: str
+    full_name: str
+
 class UserResponse(BaseModel):
     id: int
     email: str
