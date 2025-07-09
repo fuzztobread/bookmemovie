@@ -195,7 +195,6 @@ BASE_URL=https://your-domain.com
 - **Role Protection**: Admin-only movie/event management  
 - **Booking Protection**: Cannot delete events with active bookings
 - **Session Persistence**: Login survives page reloads
-- **Real-time Updates**: Live seat availability
 
 ---
 
