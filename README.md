@@ -19,8 +19,7 @@ python -m venv menv
 source menv/bin/activate  # Windows: menv\Scripts\activate
 
 # Install dependencies
-pip install fastapi uvicorn streamlit python-dotenv passlib[bcrypt] python-jose[cryptography] sqlalchemy pandas requests pydantic-settings
-
+pip install -r requirements.txt
 # Setup environment
 cp .env.example app/.env
 python -c "import secrets; print('SECRET_KEY=' + secrets.token_urlsafe(32))"
