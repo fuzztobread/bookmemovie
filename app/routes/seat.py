@@ -4,15 +4,28 @@ from database import get_db
 from models.seat import Seat
 from models.event import Event
 from models.movie import Movie
-from schemas.seat import SeatArrangementResponse, SeatResponse, BookSeatRequest, BookSeatResponse, EventResponse, CancelBookingRequest, CancelBookingResponse, PaymentRequest, PaymentResponse
+from models.user import User
+from schemas.seat import (
+    SeatArrangementResponse, SeatResponse, BookSeatRequest, BookSeatResponse, 
+    EventResponse, CancelBookingRequest, CancelBookingResponse, 
+    PaymentRequest, PaymentResponse
+)
+from core.auth import get_current_active_user
 from datetime import datetime, timedelta, timezone
+from config import get_config
 import uuid
+
+# Get config once at module level
+config = get_config()
 
 router = APIRouter()
 
 @router.get("/events", response_model=list[EventResponse])
-def get_available_events(db: Session = Depends(get_db)):
-    # Get all events with movie details
+def get_available_events(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Get all events with movie details (Authentication required)"""
     events = db.query(Event).join(Movie).all()
     
     event_responses = []
@@ -28,7 +41,12 @@ def get_available_events(db: Session = Depends(get_db)):
     return event_responses
 
 @router.get("/events/{event_id}/seats", response_model=SeatArrangementResponse)
-def get_seats_for_event(event_id: int, db: Session = Depends(get_db)):
+def get_seats_for_event(
+    event_id: int, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Get seats for an event (Authentication required)"""
     # Check if event exists
     event = db.query(Event).filter(Event.id == event_id).first()
     if not event:
@@ -41,6 +59,9 @@ def get_seats_for_event(event_id: int, db: Session = Depends(get_db)):
     seat_responses = []
     current_time = datetime.now(timezone.utc)
     
+    # Use config for seat lock duration
+    lock_duration_seconds = config.seat_lock_duration_minutes * 60
+    
     for seat in seats:
         # Determine current status - handle expired locks
         current_status = seat.status
@@ -48,7 +69,7 @@ def get_seats_for_event(event_id: int, db: Session = Depends(get_db)):
         # If seat is locked, check if lock has expired
         if current_status == "locked" and seat.locked_at:
             time_diff = current_time - seat.locked_at.replace(tzinfo=timezone.utc)
-            if time_diff.total_seconds() > 600:  # 600 seconds = 10 minutes
+            if time_diff.total_seconds() > lock_duration_seconds:
                 current_status = "open"
         
         seat_response = SeatResponse(
@@ -65,7 +86,12 @@ def get_seats_for_event(event_id: int, db: Session = Depends(get_db)):
     )
 
 @router.post("/book-seats", response_model=BookSeatResponse)
-def book_seats(booking_request: BookSeatRequest, db: Session = Depends(get_db)):
+def book_seats(
+    booking_request: BookSeatRequest, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Book seats for an event (Authentication required)"""
     current_time = datetime.now(timezone.utc)
     
     # Check if all seats exist and are available
@@ -74,7 +100,8 @@ def book_seats(booking_request: BookSeatRequest, db: Session = Depends(get_db)):
     if len(seats) != len(booking_request.seat_ids):
         raise HTTPException(status_code=404, detail="One or more seats not found")
     
-    # Check seat availability
+    # Check seat availability using config for lock duration
+    lock_duration_seconds = config.seat_lock_duration_minutes * 60
     unavailable_seats = []
     total_amount = 0
     
@@ -84,7 +111,7 @@ def book_seats(booking_request: BookSeatRequest, db: Session = Depends(get_db)):
         # Check if locked seat has expired
         if seat.status == "locked" and seat.locked_at:
             time_diff = current_time - seat.locked_at.replace(tzinfo=timezone.utc)
-            if time_diff.total_seconds() > 600:  # 10 minutes
+            if time_diff.total_seconds() > lock_duration_seconds:
                 current_status = "open"
         
         if current_status != "open":
@@ -98,20 +125,16 @@ def book_seats(booking_request: BookSeatRequest, db: Session = Depends(get_db)):
             detail=f"Seats {unavailable_seats} are not available"
         )
     
-    # Lock the seats
+    # Lock the seats using config duration
     booking_reference = str(uuid.uuid4())[:8].upper()
-    expires_at = current_time + timedelta(minutes=10)
-    
-    print(f"Generated booking_reference: {booking_reference}")
+    expires_at = current_time + timedelta(minutes=config.seat_lock_duration_minutes)
     
     for seat in seats:
         seat.status = "locked"
         seat.locked_at = current_time
         seat.booking_reference = booking_reference
-        print(f"Setting seat {seat.id} booking_reference to: {booking_reference}")
     
     db.commit()
-    print(f"Committed booking for seats: {booking_request.seat_ids}")
     
     return BookSeatResponse(
         booking_reference=booking_reference,
@@ -119,11 +142,16 @@ def book_seats(booking_request: BookSeatRequest, db: Session = Depends(get_db)):
         total_amount=total_amount,
         status="locked",
         expires_at=expires_at,
-        message=f"Seats locked for 10 minutes. Complete payment before {expires_at.strftime('%H:%M:%S')}"
+        message=f"Seats locked for {config.seat_lock_duration_minutes} minutes. Complete payment before {expires_at.strftime('%H:%M:%S')}"
     )
 
 @router.post("/confirm-payment", response_model=PaymentResponse)
-def confirm_payment(payment_request: PaymentRequest, db: Session = Depends(get_db)):
+def confirm_payment(
+    payment_request: PaymentRequest, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Confirm payment for booking (Authentication required)"""
     current_time = datetime.now(timezone.utc)
     
     # Find seats with this booking reference
@@ -132,12 +160,14 @@ def confirm_payment(payment_request: PaymentRequest, db: Session = Depends(get_d
     if not seats:
         raise HTTPException(status_code=404, detail="Booking not found")
     
-    # Check if booking has expired
+    # Check if booking has expired using config
+    lock_duration_seconds = config.seat_lock_duration_minutes * 60
     booking_expired = False
+    
     for seat in seats:
         if seat.locked_at:
             time_diff = current_time - seat.locked_at.replace(tzinfo=timezone.utc)
-            if time_diff.total_seconds() > 600:  # 10 minutes
+            if time_diff.total_seconds() > lock_duration_seconds:
                 booking_expired = True
                 break
     
@@ -166,17 +196,14 @@ def confirm_payment(payment_request: PaymentRequest, db: Session = Depends(get_d
     )
 
 @router.post("/cancel-booking", response_model=CancelBookingResponse)
-def cancel_booking(cancel_request: CancelBookingRequest, db: Session = Depends(get_db)):
-    print(f"Looking for booking_reference: {cancel_request.booking_reference}")
-    
+def cancel_booking(
+    cancel_request: CancelBookingRequest, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Cancel a booking (Authentication required)"""
     # Find seats with this booking reference
     seats = db.query(Seat).filter(Seat.booking_reference == cancel_request.booking_reference).all()
-    
-    print(f"Found {len(seats)} seats with this booking reference")
-    
-    # Let's also check what booking references exist in the database
-    all_booked_seats = db.query(Seat).filter(Seat.booking_reference.isnot(None)).all()
-    print(f"All booking references in DB: {[seat.booking_reference for seat in all_booked_seats]}")
     
     if not seats:
         raise HTTPException(status_code=404, detail="Booking not found")
@@ -184,7 +211,6 @@ def cancel_booking(cancel_request: CancelBookingRequest, db: Session = Depends(g
     # Cancel the booking - reset seats to open
     cancelled_seat_ids = []
     for seat in seats:
-        print(f"Cancelling seat {seat.id}")
         seat.status = "open"
         seat.locked_at = None
         seat.booking_reference = None
